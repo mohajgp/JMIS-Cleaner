@@ -21,7 +21,6 @@ valid_counties = [
     "Uasin Gishu", "Vihiga", "Wajir", "West Pokot"
 ]
 
-# File uploader
 uploaded_file = st.file_uploader("Upload Raw Training Data File (Excel)", type=["xlsx", "xls", "csv"])
 
 if uploaded_file:
@@ -34,7 +33,7 @@ if uploaded_file:
         st.subheader("Preview of Uploaded Raw Data")
         st.dataframe(raw_df.head(10))
 
-        # --- Mapping Raw Columns to JMIS Template ---
+        # Rename columns to match JMIS template
         rename_map = {
             "First Name": "First Name",
             "Last Name": "Last Name",
@@ -48,20 +47,14 @@ if uploaded_file:
             "WHAT WAS YOUR ESTIMATED MONTHLY REVENUE (KES) IN A PARTICULARLY GOOD MONTH": "Monthly revenues in best month (KES)",
             "WHAT WAS YOUR ESTIMATED MONTHLY REVENUE (KES) IN A PARTICULARLY BAD MONTH?": "Monthly revenues in worst month (KES)"
         }
-
         df = raw_df.rename(columns=rename_map)
 
-        # Combine First and Last Name into Participant Name
+        # Combine names and normalize
         df["Participant Name*"] = df["First Name"].fillna("").astype(str).str.title() + " " + df["Last Name"].fillna("").astype(str).str.title()
 
-        # Normalize phone number format
         df["Business phone number"] = df["Business phone number"].astype(str).str.replace("[^0-9]", "", regex=True)
         df["Business phone number"] = df["Business phone number"].apply(lambda x: "+254" + x[-9:] if len(x) >= 9 else x)
 
-        # Capitalize gender
-        df["Gender of owner* (Male/Female/Intersex)"] = df["Gender of owner* (Male/Female/Intersex)"].str.capitalize()
-
-        # Format training date
         def parse_date(val):
             try:
                 return pd.to_datetime(val).strftime("%Y-%m-%d")
@@ -69,9 +62,14 @@ if uploaded_file:
                 return ""
         df["Training date(yyyy-MM-dd)*"] = df["Training date(yyyy-MM-dd)*"].apply(parse_date)
 
-        # Set default values
+        # Normalize dropdown fields
+        df["Gender of owner* (Male/Female/Intersex)"] = df["Gender of owner* (Male/Female/Intersex)"].str.strip().str.title()
+        df["Industry sector(Agriculture, Artists/artisans, Manufacturing, Trading & Retail, Other)"] = df["Industry sector(Agriculture, Artists/artisans, Manufacturing, Trading & Retail, Other)"].str.strip().str.title()
+        df["Business Location (County)*"] = df["Business Location (County)*"].str.strip().str.title()
+        df["Type of TA*"] = df["Type of TA*"].str.strip().str.title()
+
+        # Set default or mapped fields
         df["Training Partner*"] = "KNCCI"
-        df["Business Location (County)*"] = df.get("Business Location (County)*", "")
         df["Business segment*(Micro/SME)"] = "Micro"
         df["TA delivery mode*(In person/Virtual/Mixed)"] = "In person"
         df["Passport"] = ""
@@ -83,14 +81,14 @@ if uploaded_file:
         df["Sample records kept*(Purchase record/Record of sales/Delivery records/Record of expenses/Receipts/Other)"] = df.get("DO YOU KEEP ANY OF THE FOLLOWING RECORDS IN YOUR BUSINESS OPERATIONS? [ PLEASE SELECT ALL THAT APPLY]", "")
         df["TA needs*(Financial Literacy/Record Keeping/Digitization/Market Access/Other)"] = df.get("WHAT ARE THE MOST PRESSING TECHNICAL ASSISTANCE NEEDS TO IMPROVE YOUR BUSINESS OPERATIONS? [PLEASE SELECT UP TO TWO]", "")
         df["Other TA Needs"] = ""
-        df["Person with Disability*(Yes/No)"] = df.get("DO YOU IDENTIFY AS A PERSON WITH A DISABILITY? (THIS QUESTION IS OPTIONAL AND YOUR RESPONSE WILL NOT AFFECT YOUR ELIGIBILITY FOR THE PROGRAM.)", "")
+        df["Person with Disability*(Yes/No)"] = df.get("DO YOU IDENTIFY AS A PERSON WITH A DISABILITY? (THIS QUESTION IS OPTIONAL AND YOUR RESPONSE WILL NOT AFFECT YOUR ELIGIBILITY FOR THE PROGRAM.)", "").str.strip().str.title()
         df["Refugee status*(Yes/No)"] = "No"
         df["Is applicant eligible?(Yes/No)"] = "Yes"
         df["Recommended for finance (Yes/No)"] = ""
         df["Pipeline Decision Date (yyyy-MM-dd)"] = ""
         df["FI business is referred to*"] = "KNCCI"
 
-        # Final required JMIS columns
+        # Final column list
         final_columns = [
             "Participant Name*", "Unique JGP ID (National ID)*", "Training Partner*", "Business phone number",
             "Gender of owner* (Male/Female/Intersex)", "Age of owner (full years)*", "Passport",
@@ -105,14 +103,13 @@ if uploaded_file:
             "Recommended for finance (Yes/No)", "Pipeline Decision Date (yyyy-MM-dd)", "FI business is referred to*",
             "Training date(yyyy-MM-dd)*"
         ]
-
         for col in final_columns:
             if col not in df.columns:
                 df[col] = ""
 
         cleaned_df = df[final_columns]
 
-        # Validation of dropdown fields
+        # Validate dropdown fields
         errors = []
         if not cleaned_df["Gender of owner* (Male/Female/Intersex)"].isin(valid_genders).all():
             errors.append("❌ Invalid gender values found.")
@@ -133,6 +130,7 @@ if uploaded_file:
         if not cleaned_df["Business Location (County)*"].isin(valid_counties).all():
             errors.append("❌ Invalid or missing county names.")
 
+        # Show validation results
         if errors:
             st.error("⚠️ Issues Found:")
             for err in errors:
@@ -140,10 +138,10 @@ if uploaded_file:
         else:
             st.success("✅ All dropdown fields validated successfully!")
 
+        # Display and download cleaned data
         st.subheader("Cleaned & Formatted Data for JMIS Upload")
         st.dataframe(cleaned_df.head(10))
 
-        # Download cleaned data
         st.download_button(
             label="⬇️ Download JMIS Ready Excel",
             data=cleaned_df.to_excel(index=False, engine='openpyxl'),
