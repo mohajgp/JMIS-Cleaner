@@ -28,7 +28,9 @@ if uploaded_file:
             "WHAT IS THE MAIN INDUSTRY SECTOR IN WHICH YOU OPERATE IN?": "Industry sector(Agriculture, Artists/artisans, Manufacturing, Trading & Retail, Other)",
             "Age": "Age of owner (full years)*",
             "TYPE OF TA ACCESSED": "Type of TA*",
-            "Timestamp": "Training date(yyyy-MM-dd)*"
+            "Timestamp": "Training date(yyyy-MM-dd)*",
+            "WHAT WAS YOUR ESTIMATED MONTHLY REVENUE (KES) IN A PARTICULARLY GOOD MONTH": "Monthly revenues in best month (KES)",
+            "WHAT WAS YOUR ESTIMATED MONTHLY REVENUE (KES) IN A PARTICULARLY BAD MONTH?": "Monthly revenues in worst month (KES)"
         }
 
         df = raw_df.rename(columns=rename_map)
@@ -51,7 +53,28 @@ if uploaded_file:
                 return ""
         df["Training date(yyyy-MM-dd)*"] = df["Training date(yyyy-MM-dd)*"].apply(parse_date)
 
-        # Final required columns for JMIS
+        # Set default values for missing but required fields
+        df["Training Partner*"] = "KNCCI"
+        df["Business Location (County)*"] = ""
+        df["Business segment*(Micro/SME)"] = "Micro"
+        df["TA delivery mode*(In person/Virtual/Mixed)"] = "In person"
+        df["Passport"] = ""
+        df["Business Registration Number"] = ""
+        df["Total number of regular employees including owner*"] = df.get("WHAT IS THE NUMBER OF YOUR REGULAR EMPLOYEES INCLUDING BUSINESS OWNER?", "")
+        df["Regular, of which are youth (18-35)*"] = df.get("OF THESE, HOW MANY ARE YOUTH? (18 -35 YEARS OLD)", "")
+        df["Total number of casual employees excluding owner*"] = df.get("WHAT IS THE NUMBER OF CASUAL EMPLOYEES", "")
+        df["Casual, of which are youth (18-35)*"] = df.get("OF THESE, HOW MANY ARE YOUTH? (18 -35 YEARS OLD)", "")
+        df["Sample records kept*(Purchase record/Record of sales/Delivery records/Record of expenses/Receipts/Other)"] = df.get("DO YOU KEEP ANY OF THE FOLLOWING RECORDS IN YOUR BUSINESS OPERATIONS? [ PLEASE SELECT ALL THAT APPLY]", "")
+        df["TA needs*(Financial Literacy/Record Keeping/Digitization/Market Access/Other)"] = df.get("WHAT ARE THE MOST PRESSING TECHNICAL ASSISTANCE NEEDS TO IMPROVE YOUR BUSINESS OPERATIONS? [PLEASE SELECT UP TO TWO]", "")
+        df["Other TA Needs"] = ""
+        df["Person with Disability*(Yes/No)"] = df.get("DO YOU IDENTIFY AS A PERSON WITH A DISABILITY? (THIS QUESTION IS OPTIONAL AND YOUR RESPONSE WILL NOT AFFECT YOUR ELIGIBILITY FOR THE PROGRAM.)", "")
+        df["Refugee status*(Yes/No)"] = "No"
+        df["Is applicant eligible?(Yes/No)"] = "Yes"
+        df["Recommended for finance (Yes/No)"] = ""
+        df["Pipeline Decision Date (yyyy-MM-dd)"] = ""
+        df["FI business is referred to*"] = ""
+
+        # Final required JMIS columns
         final_columns = [
             "Participant Name*", "Unique JGP ID (National ID)*", "Training Partner*", "Business phone number",
             "Gender of owner* (Male/Female/Intersex)", "Age of owner (full years)*", "Passport",
