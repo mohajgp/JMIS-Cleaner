@@ -1,0 +1,90 @@
+import streamlit as st
+import pandas as pd
+import datetime
+
+st.set_page_config(page_title="JMIS Data Cleaner", layout="wide")
+st.title("🧹 JMIS Training Data Cleaner")
+
+# File uploader
+uploaded_file = st.file_uploader("Upload Raw Training Data File (Excel)", type=["xlsx", "xls", "csv"])
+
+if uploaded_file:
+    try:
+        if uploaded_file.name.endswith(".csv"):
+            raw_df = pd.read_csv(uploaded_file)
+        else:
+            raw_df = pd.read_excel(uploaded_file)
+
+        st.subheader("Preview of Uploaded Raw Data")
+        st.dataframe(raw_df.head(10))
+
+        # --- Mapping Raw Columns to JMIS Template ---
+        rename_map = {
+            "First Name": "First Name",
+            "Last Name": "Last Name",
+            "WHAT IS YOUR NATIONAL ID?": "Unique JGP ID (National ID)*",
+            "Business Phone Number": "Business phone number",
+            "Gender": "Gender of owner* (Male/Female/Intersex)",
+            "WHAT IS THE MAIN INDUSTRY SECTOR IN WHICH YOU OPERATE IN?": "Industry sector(Agriculture, Artists/artisans, Manufacturing, Trading & Retail, Other)",
+            "Age": "Age of owner (full years)*",
+            "TYPE OF TA ACCESSED": "Type of TA*",
+            "Timestamp": "Training date(yyyy-MM-dd)*"
+        }
+
+        df = raw_df.rename(columns=rename_map)
+
+        # Combine First and Last Name into Participant Name
+        df["Participant Name*"] = df["First Name"].fillna("").astype(str).str.title() + " " + df["Last Name"].fillna("").astype(str).str.title()
+
+        # Normalize phone number format
+        df["Business phone number"] = df["Business phone number"].astype(str).str.replace("[^0-9]", "", regex=True)
+        df["Business phone number"] = df["Business phone number"].apply(lambda x: "+254" + x[-9:] if len(x) >= 9 else x)
+
+        # Capitalize gender
+        df["Gender of owner* (Male/Female/Intersex)"] = df["Gender of owner* (Male/Female/Intersex)"].str.capitalize()
+
+        # Format training date
+        def parse_date(val):
+            try:
+                return pd.to_datetime(val).strftime("%Y-%m-%d")
+            except:
+                return ""
+        df["Training date(yyyy-MM-dd)*"] = df["Training date(yyyy-MM-dd)*"].apply(parse_date)
+
+        # Final required columns for JMIS
+        final_columns = [
+            "Participant Name*", "Unique JGP ID (National ID)*", "Training Partner*", "Business phone number",
+            "Gender of owner* (Male/Female/Intersex)", "Age of owner (full years)*", "Passport",
+            "Business Location (County)*", "Industry sector(Agriculture, Artists/artisans, Manufacturing, Trading & Retail, Other)",
+            "Business segment*(Micro/SME)", "TA delivery mode*(In person/Virtual/Mixed)", "Business Registration Number",
+            "Monthly revenues in best month (KES)", "Monthly revenues in worst month (KES)",
+            "Total number of regular employees including owner*", "Regular, of which are youth (18-35)*",
+            "Total number of casual employees excluding owner*", "Casual, of which are youth (18-35)*",
+            "Sample records kept*(Purchase record/Record of sales/Delivery records/Record of expenses/Receipts/Other)",
+            "TA needs*(Financial Literacy/Record Keeping/Digitization/Market Access/Other)", "Other TA Needs", "Type of TA*",
+            "Person with Disability*(Yes/No)", "Refugee status*(Yes/No)", "Is applicant eligible?(Yes/No)",
+            "Recommended for finance (Yes/No)", "Pipeline Decision Date (yyyy-MM-dd)", "FI business is referred to*",
+            "Training date(yyyy-MM-dd)*"
+        ]
+
+        for col in final_columns:
+            if col not in df.columns:
+                df[col] = ""
+
+        cleaned_df = df[final_columns]
+
+        st.subheader("Cleaned & Formatted Data for JMIS Upload")
+        st.dataframe(cleaned_df.head(10))
+
+        # Download cleaned data
+        st.download_button(
+            label="⬇️ Download JMIS Ready Excel",
+            data=cleaned_df.to_excel(index=False, engine='openpyxl'),
+            file_name="JMIS_CLEANED_UPLOAD.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+    except Exception as e:
+        st.error(f"❌ Error processing file: {e}")
+else:
+    st.info("Please upload a raw training data file to begin.")
