@@ -20,7 +20,12 @@ valid_counties = [
     "Samburu", "Siaya", "Taita-Taveta", "Tana River", "Tharaka-Nithi", "Trans Nzoia", "Turkana",
     "Uasin Gishu", "Vihiga", "Wajir", "West Pokot"
 ]
+valid_sample_records = [
+    "Purchase record", "Record of sales", "Delivery records", "Record of expenses", "Receipts", "Other"
+]
+valid_ta_needs = ["Financial Literacy", "Record Keeping", "Digitization", "Market Access", "Other"]
 
+# File uploader
 uploaded_file = st.file_uploader("Upload Raw Training Data File (Excel)", type=["xlsx", "xls", "csv"])
 
 if uploaded_file:
@@ -46,16 +51,20 @@ if uploaded_file:
             "WHAT WAS YOUR ESTIMATED MONTHLY REVENUE (KES) IN A PARTICULARLY GOOD MONTH": "Monthly revenues in best month (KES)",
             "WHAT WAS YOUR ESTIMATED MONTHLY REVENUE (KES) IN A PARTICULARLY BAD MONTH?": "Monthly revenues in worst month (KES)"
         }
+
         df = raw_df.rename(columns=rename_map)
 
+        # Participant Name cleanup
         df["Participant Name*"] = (
             df["First Name"].fillna("").astype(str).str.title() + " " +
             df["Last Name"].fillna("").astype(str).str.title()
         ).str.replace(r"\s+", " ", regex=True).str.strip()
 
+        # Clean phone number, remove symbols, pad to 254xxxxxxxxx
         df["Business phone number"] = df["Business phone number"].astype(str).str.replace("[^0-9]", "", regex=True)
-        df["Business phone number"] = df["Business phone number"].apply(lambda x: "'+254" + x[-9:] if len(x) >= 9 else x)
+        df["Business phone number"] = df["Business phone number"].apply(lambda x: "254" + x[-9:] if len(x) >= 9 else x)
 
+        # Date format
         def parse_date(val):
             try:
                 return pd.to_datetime(val).strftime("%Y-%m-%d")
@@ -63,16 +72,20 @@ if uploaded_file:
                 return ""
         df["Training date(yyyy-MM-dd)*"] = df["Training date(yyyy-MM-dd)*"].apply(parse_date)
 
+        # Capitalization normalization
         df["Gender of owner* (Male/Female/Intersex)"] = df["Gender of owner* (Male/Female/Intersex)"].str.strip().str.title()
-        df["Industry sector(Agriculture, Artists/artisans, Manufacturing, Trading & Retail, Other)"] = df["Industry sector(Agriculture, Artists/artisans, Manufacturing, Trading & Retail, Other)"].str.strip().str.title()
+        df["Industry sector(Agriculture, Artists/artisans, Manufacturing, Trading & Retail, Other)"] = df[
+            "Industry sector(Agriculture, Artists/artisans, Manufacturing, Trading & Retail, Other)"].str.strip().str.title()
         df["Type of TA*"] = df["Type of TA*"].str.strip().str.title()
 
+        # County fallback
         if "Business Location (County)*" not in df.columns:
             default_county = st.text_input("📍 Column 'Business Location (County)*' not found. Type the county to apply to all rows:")
             df["Business Location (County)*"] = default_county.strip().title()
         else:
             df["Business Location (County)*"] = df["Business Location (County)*"].str.strip().str.title()
 
+        # Static/default columns
         df["Training Partner*"] = "KNCCI"
         df["Business segment*(Micro/SME)"] = "Micro"
         df["TA delivery mode*(In person/Virtual/Mixed)"] = "In person"
@@ -83,18 +96,19 @@ if uploaded_file:
         df["Total number of casual employees excluding owner*"] = df.get("WHAT IS THE NUMBER OF CASUAL EMPLOYEES", "")
         df["Casual, of which are youth (18-35)*"] = df.get("OF THESE, HOW MANY ARE YOUTH? (18 -35 YEARS OLD)", "")
 
-        def capitalize_list(val):
+        def normalize_list(val, allowed_values):
             if pd.isna(val):
                 return ""
-            return ", ".join([x.strip().title() for x in str(val).split(",")])
+            cleaned = [x.strip().title() for x in str(val).split(",")]
+            return ", ".join([x for x in cleaned if x in allowed_values])
 
         df["Sample records kept*(Purchase record/Record of sales/Delivery records/Record of expenses/Receipts/Other)"] = df.get(
             "DO YOU KEEP ANY OF THE FOLLOWING RECORDS IN YOUR BUSINESS OPERATIONS? [ PLEASE SELECT ALL THAT APPLY]", ""
-        ).apply(capitalize_list)
+        ).apply(lambda x: normalize_list(x, valid_sample_records))
 
         df["TA needs*(Financial Literacy/Record Keeping/Digitization/Market Access/Other)"] = df.get(
             "WHAT ARE THE MOST PRESSING TECHNICAL ASSISTANCE NEEDS TO IMPROVE YOUR BUSINESS OPERATIONS? [PLEASE SELECT UP TO TWO]", ""
-        ).apply(capitalize_list)
+        ).apply(lambda x: normalize_list(x, valid_ta_needs))
 
         df["Other TA Needs"] = ""
         df["Person with Disability*(Yes/No)"] = df.get("DO YOU IDENTIFY AS A PERSON WITH A DISABILITY? (THIS QUESTION IS OPTIONAL AND YOUR RESPONSE WILL NOT AFFECT YOUR ELIGIBILITY FOR THE PROGRAM.)", "").str.strip().str.title()
@@ -104,6 +118,7 @@ if uploaded_file:
         df["Pipeline Decision Date (yyyy-MM-dd)"] = ""
         df["FI business is referred to*"] = "KNCCI"
 
+        # Final column order
         final_columns = [
             "Participant Name*", "Unique JGP ID (National ID)*", "Training Partner*", "Business phone number",
             "Gender of owner* (Male/Female/Intersex)", "Age of owner (full years)*", "Passport",
@@ -125,7 +140,7 @@ if uploaded_file:
 
         cleaned_df = df[final_columns]
 
-        # Validation checks
+        # Basic validations
         errors = []
         if not cleaned_df["Gender of owner* (Male/Female/Intersex)"].isin(valid_genders).all():
             errors.append("❌ Invalid gender values found.")
