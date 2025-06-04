@@ -5,6 +5,22 @@ import datetime
 st.set_page_config(page_title="JMIS Data Cleaner", layout="wide")
 st.title("🧹 JMIS Training Data Cleaner")
 
+# Dropdown valid options
+valid_genders = ["Male", "Female", "Intersex"]
+valid_ta_modes = ["In person", "Virtual", "Mixed"]
+valid_segments = ["Micro", "SME"]
+valid_ta_types = ["Post-lending", "Pre-lending", "Non-lending", "Mentorship", "Voucher scheme"]
+valid_yes_no = ["Yes", "No"]
+valid_sectors = ["Agriculture", "Artists/artisans", "Manufacturing", "Trading & Retail", "Other"]
+valid_counties = [
+    "Baringo", "Bomet", "Bungoma", "Busia", "Elgeyo-Marakwet", "Embu", "Garissa", "Homa Bay", "Isiolo",
+    "Kajiado", "Kakamega", "Kericho", "Kiambu", "Kilifi", "Kirinyaga", "Kisii", "Kisumu", "Kitui",
+    "Kwale", "Laikipia", "Lamu", "Machakos", "Makueni", "Mandera", "Marsabit", "Meru", "Migori",
+    "Mombasa", "Murang'a", "Nairobi", "Nakuru", "Nandi", "Narok", "Nyamira", "Nyandarua", "Nyeri",
+    "Samburu", "Siaya", "Taita-Taveta", "Tana River", "Tharaka-Nithi", "Trans Nzoia", "Turkana",
+    "Uasin Gishu", "Vihiga", "Wajir", "West Pokot"
+]
+
 # File uploader
 uploaded_file = st.file_uploader("Upload Raw Training Data File (Excel)", type=["xlsx", "xls", "csv"])
 
@@ -53,9 +69,9 @@ if uploaded_file:
                 return ""
         df["Training date(yyyy-MM-dd)*"] = df["Training date(yyyy-MM-dd)*"].apply(parse_date)
 
-        # Set default values for missing but required fields
+        # Set default values
         df["Training Partner*"] = "KNCCI"
-        df["Business Location (County)*"] = ""
+        df["Business Location (County)*"] = df.get("Business Location (County)*", "")
         df["Business segment*(Micro/SME)"] = "Micro"
         df["TA delivery mode*(In person/Virtual/Mixed)"] = "In person"
         df["Passport"] = ""
@@ -72,7 +88,7 @@ if uploaded_file:
         df["Is applicant eligible?(Yes/No)"] = "Yes"
         df["Recommended for finance (Yes/No)"] = ""
         df["Pipeline Decision Date (yyyy-MM-dd)"] = ""
-        df["FI business is referred to*"] = ""
+        df["FI business is referred to*"] = "KNCCI"
 
         # Final required JMIS columns
         final_columns = [
@@ -95,6 +111,34 @@ if uploaded_file:
                 df[col] = ""
 
         cleaned_df = df[final_columns]
+
+        # Validation of dropdown fields
+        errors = []
+        if not cleaned_df["Gender of owner* (Male/Female/Intersex)"].isin(valid_genders).all():
+            errors.append("❌ Invalid gender values found.")
+        if not cleaned_df["TA delivery mode*(In person/Virtual/Mixed)"].isin(valid_ta_modes).all():
+            errors.append("❌ Invalid TA delivery mode values.")
+        if not cleaned_df["Business segment*(Micro/SME)"].isin(valid_segments).all():
+            errors.append("❌ Invalid business segment values.")
+        if not cleaned_df["Type of TA*"].isin(valid_ta_types).all():
+            errors.append("❌ Invalid Type of TA values.")
+        if not cleaned_df["Person with Disability*(Yes/No)"].isin(valid_yes_no).all():
+            errors.append("❌ Invalid disability Yes/No values.")
+        if not cleaned_df["Refugee status*(Yes/No)"].isin(valid_yes_no).all():
+            errors.append("❌ Invalid refugee Yes/No values.")
+        if not cleaned_df["Is applicant eligible?(Yes/No)"].isin(valid_yes_no).all():
+            errors.append("❌ Invalid eligibility Yes/No values.")
+        if not cleaned_df["Industry sector(Agriculture, Artists/artisans, Manufacturing, Trading & Retail, Other)"].isin(valid_sectors).all():
+            errors.append("❌ Invalid industry sector values.")
+        if not cleaned_df["Business Location (County)*"].isin(valid_counties).all():
+            errors.append("❌ Invalid or missing county names.")
+
+        if errors:
+            st.error("⚠️ Issues Found:")
+            for err in errors:
+                st.write(err)
+        else:
+            st.success("✅ All dropdown fields validated successfully!")
 
         st.subheader("Cleaned & Formatted Data for JMIS Upload")
         st.dataframe(cleaned_df.head(10))
