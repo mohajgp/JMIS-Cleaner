@@ -33,7 +33,7 @@ if uploaded_file:
         st.subheader("Preview of Uploaded Raw Data")
         st.dataframe(raw_df.head(10))
 
-        # Rename columns to match JMIS template
+        # Rename raw columns
         rename_map = {
             "First Name": "First Name",
             "Last Name": "Last Name",
@@ -49,12 +49,14 @@ if uploaded_file:
         }
         df = raw_df.rename(columns=rename_map)
 
-        # Combine names and normalize
+        # Participant name
         df["Participant Name*"] = df["First Name"].fillna("").astype(str).str.title() + " " + df["Last Name"].fillna("").astype(str).str.title()
 
+        # Normalize phone
         df["Business phone number"] = df["Business phone number"].astype(str).str.replace("[^0-9]", "", regex=True)
         df["Business phone number"] = df["Business phone number"].apply(lambda x: "+254" + x[-9:] if len(x) >= 9 else x)
 
+        # Format training date
         def parse_date(val):
             try:
                 return pd.to_datetime(val).strftime("%Y-%m-%d")
@@ -65,10 +67,16 @@ if uploaded_file:
         # Normalize dropdown fields
         df["Gender of owner* (Male/Female/Intersex)"] = df["Gender of owner* (Male/Female/Intersex)"].str.strip().str.title()
         df["Industry sector(Agriculture, Artists/artisans, Manufacturing, Trading & Retail, Other)"] = df["Industry sector(Agriculture, Artists/artisans, Manufacturing, Trading & Retail, Other)"].str.strip().str.title()
-        df["Business Location (County)*"] = df["Business Location (County)*"].str.strip().str.title()
         df["Type of TA*"] = df["Type of TA*"].str.strip().str.title()
 
-        # Set default or mapped fields
+        # Fallback for County column
+        if "Business Location (County)*" not in df.columns:
+            default_county = st.text_input("📍 Column 'Business Location (County)*' not found. Type the county to apply to all rows:")
+            df["Business Location (County)*"] = default_county.strip().title()
+        else:
+            df["Business Location (County)*"] = df["Business Location (County)*"].str.strip().str.title()
+
+        # Fill required fields
         df["Training Partner*"] = "KNCCI"
         df["Business segment*(Micro/SME)"] = "Micro"
         df["TA delivery mode*(In person/Virtual/Mixed)"] = "In person"
@@ -88,7 +96,6 @@ if uploaded_file:
         df["Pipeline Decision Date (yyyy-MM-dd)"] = ""
         df["FI business is referred to*"] = "KNCCI"
 
-        # Final column list
         final_columns = [
             "Participant Name*", "Unique JGP ID (National ID)*", "Training Partner*", "Business phone number",
             "Gender of owner* (Male/Female/Intersex)", "Age of owner (full years)*", "Passport",
@@ -109,7 +116,7 @@ if uploaded_file:
 
         cleaned_df = df[final_columns]
 
-        # Validate dropdown fields
+        # Validations
         errors = []
         if not cleaned_df["Gender of owner* (Male/Female/Intersex)"].isin(valid_genders).all():
             errors.append("❌ Invalid gender values found.")
@@ -130,7 +137,6 @@ if uploaded_file:
         if not cleaned_df["Business Location (County)*"].isin(valid_counties).all():
             errors.append("❌ Invalid or missing county names.")
 
-        # Show validation results
         if errors:
             st.error("⚠️ Issues Found:")
             for err in errors:
@@ -138,7 +144,7 @@ if uploaded_file:
         else:
             st.success("✅ All dropdown fields validated successfully!")
 
-        # Display and download cleaned data
+        # Display and download
         st.subheader("Cleaned & Formatted Data for JMIS Upload")
         st.dataframe(cleaned_df.head(10))
 
