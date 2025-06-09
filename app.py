@@ -49,7 +49,7 @@ if uploaded_file:
     try:
         raw_df = pd.read_csv(uploaded_file) if uploaded_file.name.endswith(".csv") else pd.read_excel(uploaded_file)
         st.subheader("Preview of Uploaded Raw Data")
-        st.dataframe(raw_df.head(10))
+        st.dataframe(raw_df)
 
         rename_map = {
             "First Name": "First Name",
@@ -142,9 +142,9 @@ if uploaded_file:
         cleaned_df = df[final_columns]
 
         st.subheader("Cleaned & Formatted Data for JMIS Upload")
-        st.dataframe(cleaned_df.head(10))
+        st.dataframe(cleaned_df)  # Show all rows, not head(10)
 
-        # Download button - with BytesIO for correct Excel file generation
+        # Download button - as Excel
         output = io.BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
             cleaned_df.to_excel(writer, index=False)
