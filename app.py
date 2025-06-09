@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import datetime
+import io
 
 st.set_page_config(page_title="JMIS Data Cleaner", layout="wide")
 st.title("🧹 JMIS Training Data Cleaner")
@@ -74,26 +75,35 @@ if uploaded_file:
         df["Business phone number"] = df["Business phone number"].astype(str).str.replace("[^0-9]", "", regex=True)
         df["Business phone number"] = df["Business phone number"].apply(lambda x: "254" + x[-9:] if len(x) >= 9 else x)
 
-        df["Training date(yyyy-MM-dd)*"] = df["Training date(yyyy-MM-dd)*"].apply(lambda val: pd.to_datetime(val, errors='coerce').strftime("%Y-%m-%d") if not pd.isna(val) else "")
+        df["Training date(yyyy-MM-dd)*"] = df["Training date(yyyy-MM-dd)*"].apply(
+            lambda val: pd.to_datetime(val, errors='coerce').strftime("%Y-%m-%d") if not pd.isna(val) else ""
+        )
         df["Gender of owner* (Male/Female/Intersex)"] = df["Gender of owner* (Male/Female/Intersex)"].str.strip().str.title()
         df["Industry sector(Agriculture, Artists/artisans, Manufacturing, Trading & Retail, Other)"] = df["Industry sector(Agriculture, Artists/artisans, Manufacturing, Trading & Retail, Other)"].str.strip().str.title()
         df["Type of TA*"] = df["Type of TA*"].str.strip().str.title()
 
+        # Handle missing Business Location (County)
         if "Business Location (County)*" not in df.columns:
             county_input = st.text_input("📍 'Business Location (County)*' column missing. Enter county name to apply to all:")
             df["Business Location (County)*"] = county_input.strip().title()
         else:
             df["Business Location (County)*"] = df["Business Location (County)*"].str.strip().str.title()
 
+        # Map known or fallback columns
+        reg_employees = df.get("WHAT IS THE NUMBER OF YOUR REGULAR EMPLOYEES INCLUDING BUSINESS OWNER?", df.get("WHAT IS THE NUMBER OF REGULAR EMPLOYEES INCLUDING BUSINESS OWNER?", ""))
+        reg_youth = df.get("OF THESE, HOW MANY ARE YOUTH? (18 -35 YEARS OLD)", df.get("OF THESE, HOW MANY ARE YOUTH? (18 -35 YEARS OLD)OF THESE, HOW MANY ARE YOUTH?", ""))
+        casual_employees = df.get("WHAT IS THE NUMBER OF CASUAL EMPLOYEES", df.get("WHAT IS THE NUMBER OF YOUR CASUAL EMPLOYEES?", ""))
+        casual_youth = df.get("OF THESE, HOW MANY ARE YOUTH? (18 -35 YEARS OLD)", "")
+
         df["Training Partner*"] = "KNCCI"
         df["Business segment*(Micro/SME)"] = "Micro"
         df["TA delivery mode*(In person/Virtual/Mixed)"] = "In person"
         df["Passport"] = ""
         df["Business Registration Number"] = ""
-        df["Total number of regular employees including owner*"] = df.get("WHAT IS THE NUMBER OF YOUR REGULAR EMPLOYEES INCLUDING BUSINESS OWNER?", "")
-        df["Regular, of which are youth (18-35)*"] = df.get("OF THESE, HOW MANY ARE YOUTH? (18 -35 YEARS OLD)", "")
-        df["Total number of casual employees excluding owner*"] = df.get("WHAT IS THE NUMBER OF CASUAL EMPLOYEES", "")
-        df["Casual, of which are youth (18-35)*"] = df.get("OF THESE, HOW MANY ARE YOUTH? (18 -35 YEARS OLD)", "")
+        df["Total number of regular employees including owner*"] = reg_employees
+        df["Regular, of which are youth (18-35)*"] = reg_youth
+        df["Total number of casual employees excluding owner*"] = casual_employees
+        df["Casual, of which are youth (18-35)*"] = casual_youth
         df["Sample records kept*(Purchase record/Record of sales/Delivery records/Record of expenses/Receipts/Other)"] = df.get(
             "DO YOU KEEP ANY OF THE FOLLOWING RECORDS IN YOUR BUSINESS OPERATIONS? [ PLEASE SELECT ALL THAT APPLY]", ""
         ).apply(normalize_sample_records)
@@ -101,7 +111,9 @@ if uploaded_file:
             "WHAT ARE THE MOST PRESSING TECHNICAL ASSISTANCE NEEDS TO IMPROVE YOUR BUSINESS OPERATIONS? [PLEASE SELECT UP TO TWO]", ""
         ).apply(lambda x: normalize_list(x, ["Financial Literacy", "Record Keeping", "Digitization", "Market Access", "Other"]))
         df["Other TA Needs"] = ""
-        df["Person with Disability*(Yes/No)"] = df.get("DO YOU IDENTIFY AS A PERSON WITH A DISABILITY? (THIS QUESTION IS OPTIONAL AND YOUR RESPONSE WILL NOT AFFECT YOUR ELIGIBILITY FOR THE PROGRAM.)", "").str.strip().str.title()
+        df["Person with Disability*(Yes/No)"] = df.get(
+            "DO YOU IDENTIFY AS A PERSON WITH A DISABILITY? (THIS QUESTION IS OPTIONAL AND YOUR RESPONSE WILL NOT AFFECT YOUR ELIGIBILITY FOR THE PROGRAM.)", ""
+        ).str.strip().str.title()
         df["Refugee status*(Yes/No)"] = "No"
         df["Is applicant eligible?(Yes/No)"] = "Yes"
         df["Recommended for finance (Yes/No)"] = ""
@@ -132,9 +144,13 @@ if uploaded_file:
         st.subheader("Cleaned & Formatted Data for JMIS Upload")
         st.dataframe(cleaned_df.head(10))
 
+        # Download button - with BytesIO for correct Excel file generation
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            cleaned_df.to_excel(writer, index=False)
         st.download_button(
             label="⬇️ Download JMIS Ready Excel",
-            data=cleaned_df.to_excel(index=False, engine='openpyxl'),
+            data=output.getvalue(),
             file_name="JMIS_CLEANED_UPLOAD.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
